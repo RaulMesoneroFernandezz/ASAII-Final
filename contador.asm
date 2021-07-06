@@ -1,78 +1,86 @@
-	.eqv E0 0
-	.eqv E1 4
-	.eqv E2 8
-	.eqv E3 0xC
-	.eqv E4 0x10
-	.eqv E5 0x14
-	.eqv E6 0x18
-	.eqv E7 0x1C
-	.eqv E8 0x20
-	.eqv E9 0x24
+	.globl contador
 	
-	.eqv DIG0 0x3F  #-- Digito 0
-	.eqv DIG1 0x06  #-- Digito 1
-	.eqv DIG2 0x5B  #-- Digito 2
-	.eqv DIG3 0x4F  #-- Digito 3
-	.eqv DIG4 0x66  #-- Digito 4
-	.eqv DIG5 0x6D  #-- Digito 5
-	.eqv DIG6 0x7D  #-- Digito 6
-	.eqv DIG7 0x07  #-- Digito 7
-	.eqv DIG8 0x7F  #-- Digito 8
-	.eqv DIG9 0x6F  #-- Digito 9
-	
-	.eqv DISPLAY 0xFFFF0011
+	.include "servicios.asm"
 	
 	.data
 
-tabla:  .word DIG0  #-- E1
-	.word DIG1  #-- E2
-	.word DIG2  #-- E3
-	.word DIG3  #-- E4
-	.word DIG4  #-- E5
-	.word DIG5  #-- E6
-	.word DIG6  #-- E7
-	.word DIG7  #-- E8 
-	.word DIG8  #-- E9
-	.word DIG9  #-- E10
-	
+msg1:	.string "Introduce el numero en el que se empieza: "
+msg2:	.string "Introduce el numero en que se termina (no incluido): "
+msg3:	.string "El primer numero debe de ser menor que el segundo.\n"
+
 	.text
 	
-	la x5, tabla
-	li x6, DISPLAY
-	
-repetir:
-	lw x10, E0(x5)
-	sw x10, 0(x6)
+contador:
 
-	lw x10, E1(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E2(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E3(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E4(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E5(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E6(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E7(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E8(x5)
-	sw x10, 0(x6)
-	
-	lw x10, E9(x5)
-	sw x10, 0(x6)
-	
-	b repetir
-	
-	#-- Terminar
-	li a7, 10
+	li t2, DISPLAY_R
+	li t3, DISPLAY_L
+
+	#-- Pedir al usuario en que numero quiere comenzar a contar
+	la a0, msg1
+	li a7, PRINT_STRING
 	ecall
+	
+	#-- Leer primer entero (t0)
+	li a7, READ_INT
+	ecall
+	mv t0, a0
+	
+	#-- Pedir al usuario hasta que numero quiere contar
+	la a0, msg2
+	li a7, PRINT_STRING
+	ecall
+	
+	#-- Leer segundo entero (t1)
+	li a7, READ_INT
+	ecall
+	mv t1, a0
+	
+	#-- Comprobar si el primer numero es menor que el segundo
+	blt t1, t0, error
+	
+	#-- Crear la pila mínima: 20 bytes
+	addi sp, sp, -20
+	
+	#---- GUARDAR RA EN LA PILA
+	sw ra, 16(sp)
+
+	b contar
+
+contar:
+
+	mv a0, t0  #-- El primer parametro de la funcion
+	mv a1, t2  #-- El segundo parametro de la funcion
+	
+	sw t0, 12(sp) #-- Guardamos el valor de t0
+	sw t1, 8(sp) #-- Guardamos el valor de t1
+	sw t2, 4(sp) #-- Guardamos el valor de t2
+	sw t3, 0(sp) #-- Guardamos el valor de t3
+	
+	jal colocar_display
+	
+	lw t0, 12(sp) #-- Recuperamos de la pila el valor de t0
+	lw t1, 8(sp) #-- Recuperamos de la pila el valor de t1
+	lw t2, 4(sp) #-- Recuperamos de la pila el valor de t1
+	lw t3, 0(sp) #-- Recuperamos de la pila el valor de t1
+
+	addi t0, t0, 1 #-- Pasamos al siguiente numero
+	
+	beq t0, t1, end #-- Comprobamos si ya se ha llegado al maximo
+	
+	b contar #-- Repetimos
+
+error:
+
+	la a0, msg3
+	li a7, PRINT_STRING
+	ecall
+	
+	b end
+
+end:
+	#-- Cargamos la direccion de retorno
+	lw ra, 16(sp)
+	#-- Liberar el espacio de la pila
+	addi sp, sp, 20
+	#-- Terminar
+	ret
